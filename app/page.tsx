@@ -1,14 +1,17 @@
 import { nanoid } from '@/lib/utils'
 import { Chat } from '@/components/chat'
-import { FileUploader } from '@/components/file-uploader'
+import CurrentData from '@/components/CurrentData'
+import { getEmbededCount } from '@/lib/actions'
 
-export default function IndexPage() {
-  const id = nanoid()
+export const revalidate = 0
 
+export default async function IndexPage() {
+  const count = await getEmbededCount()
   return (
     <>
-      {/* <FileUploader/> */}
-      <Chat id={id} />
+      {/* @ts-expect-error Server Component */}
+      <CurrentData />
+      {count && count > 0 ? <Chat /> : null}
     </>
   )
 }

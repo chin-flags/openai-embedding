@@ -5,6 +5,7 @@ import { createReadStream } from 'fs'
 import csv from 'csv-parser'
 
 import { createClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -47,65 +48,29 @@ function getSimilarityScore(investerData: any[], promptEmbedding: number[]) {
   })
 }
 
-export const embedData = async () => {
-  const results: any[] = []
-
-  createReadStream('./investers.csv')
-    .pipe(csv())
-    .on('data', data => results.push(data))
-    .on('end', () => {
-      const minResults = results.slice(0, 100)
-      const strings = minResults.map(async obj => {
-        const name = obj.Name
-        const email = obj['Email (work)']
-        const type = obj['Entity category']
-        const location = obj.Country
-        const industries = obj['Focus/Industry']
-
-        let consolidated = ''
-
-        if (name) {
-          consolidated += `Investor Name: ${name};`
-        }
-
-        if (email) {
-          consolidated += `Email: ${email};`
-        }
-
-        if (type) {
-          consolidated += `Type: ${type};`
-        }
-
-        if (location) {
-          consolidated += `Location ${location};`
-        }
-
-        if (industries) {
-          consolidated += `Investment Focus ${industries};`
-        }
-
-        try {
-          const response = await api.createEmbedding({
-            model: 'text-embedding-ada-002',
-            input: consolidated
-          })
-
-          const [{ embedding }] = response.data.data
-          // Store the vector in Postgres
-          const { data, error } = await supabase.from('explorer').insert({
-            name,
-            location: location || '',
-            email: email || '',
-            type: type || '',
-            industries: industries || '',
-            consolidated,
-            embedding
-          })
-        } catch (error) {
-          console.log('errrrrr', error)
-        }
+export const embedData = async (data: any[], template: string) => {
+  const promises = data.map(async ({ text, fields }) => {
+    try {
+      const response = await api.createEmbedding({
+        model: 'text-embedding-ada-002',
+        input: text
       })
-    })
+
+      const [{ embedding }] = response.data.data
+      // Store the vector in Postgres
+      const { data, error } = await supabase.from('explorer').insert({
+        fields,
+        text,
+        embedding
+      })
+    } catch (error) {
+      console.log('errrrrr', error)
+    }
+  })
+
+  await Promise.all(promises)
+
+  revalidatePath("/")
 }
 
 export const chat = async (formData: FormData) => {
@@ -128,11 +93,24 @@ export const chat = async (formData: FormData) => {
 
   const results = matchingInvestors
     //@ts-ignore
-    .filter(({ matchingScore }) => matchingScore > (parseFloat(threshold) || 0.85))
+    .filter(
+      ({ matchingScore }) => matchingScore > (parseFloat(threshold) || 0.85)
+    )
     //@ts-ignore
     .sort((a, b) => b.matchingScore - a.matchingScore)
     .slice(0, 5)
 
-
   return results
+}
+
+export const getEmbededCount = async () => {
+  const { count } = await supabase
+    .from('explorer')
+    .select('*', { count: 'exact' })
+  return count
+}
+
+export const clearData = async () => {
+  await supabase.from('explorer').delete().neq('text', 'anything')
+  revalidatePath("/")
 }
