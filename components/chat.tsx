@@ -107,7 +107,7 @@ export function Chat({ id, initialMessages, className }: ChatProps) {
                   <a href="#" className="focus:outline-none">
                     <p className="text-bold">{matchingScore}</p>
                     {Object.keys(fields).map(key => (
-                      <div className="flex flex-col">
+                      <div className="flex flex-col" key={key}>
                         <p
                           key={key}
                           className="text-sm font-bold text-gray-500"
