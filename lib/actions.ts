@@ -98,7 +98,7 @@ export const chat = async (formData: FormData) => {
     )
     //@ts-ignore
     .sort((a, b) => b.matchingScore - a.matchingScore)
-    .slice(0, 5)
+    .slice(0, 15)
 
   return results
 }
